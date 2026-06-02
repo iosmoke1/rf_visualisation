@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Random Forest Visualisation</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Интерактивная визуализация</p>
+      <h1>Random Forest</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="resetDataBtn" type="button" title="Перегенерировать точки с текущими настройками и очистить обученный лес.">Сбросить</button>
+      <button id="removeOneBtn" type="button" title="Убрать последнее обученное дерево из леса. Это удобно, чтобы пошагово откатиться назад.">-1 дерево</button>
+      <button id="trainOneBtn" type="button" title="Добавить одно обученное дерево в текущий лес. Граница решений появится сразу, но плановое число деревьев слева не меняется.">Обучить +1 дерево</button>
+      <button id="trainAllBtn" type="button" class="primary" title="Обучить деревья до количества, выбранного ползунком 'Деревьев'.">Обучить лес</button>
+      <div class="playback-control">
+        <label>
+          <span title="Текущий шаг обучения: сколько деревьев сейчас обучено из выбранной цели.">Шаг обучения: <span id="playbackValue">0/18</span></span>
+          <input id="playbackSlider" type="range" min="0" max="80" step="1" value="0">
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <section class="intro">
+    Решение задачи бинарной классификации с помощью алгоритма Random Forest. Слева настройки данных и гиперпараметров,
+    в центре видна граница решений, справа считаются метрики, а снизу можно посмотреть первые деревья леса.
+  </section>
+
+  <main class="layout">
+    <aside class="panel controls">
+      <section>
+        <h2>Данные</h2>
+        <label>
+          <span class="label-title" title="Форма данных: две луны, кольца, XOR или кластеры.">Датасет</span>
+          <select id="datasetSelect">
+            <option value="moons">Две луны</option>
+            <option value="circles">Кольца</option>
+            <option value="xor">XOR</option>
+            <option value="blobs">Кластеры</option>
+          </select>
+        </label>
+        <label>
+          <span class="label-title" title="Количество точек для обучения.">Объекты: <span id="sampleCountValue"></span></span>
+          <input id="sampleCount" type="range" min="80" max="420" step="20" value="80">
+        </label>
+        <label>
+          <span class="label-title" title="Случайное смещение в данных.">Шум: <span id="noiseValue"></span></span>
+          <input id="noise" type="range" min="0" max="45" step="1" value="0">
+        </label>
+        <label>
+          <span class="label-title" title="Доля данных для обучения.">Train split: <span id="trainSplitValue"></span></span>
+          <input id="trainSplit" type="range" min="50" max="90" step="5" value="50">
+        </label>
+        <label>
+          <span class="label-title" title="Сид для воспроизводимости.">Seed</span>
+          <input id="seedInput" type="number" min="1" max="999999" value="1">
+        </label>
+      </section>
+
+      <section>
+        <h2>Лес</h2>
+        <label>
+          <span class="label-title" title="Целевое количество деревьев в лесу.">Цель деревьев: <span id="treeCountValue"></span></span>
+          <input id="treeCount" type="range" min="1" max="80" step="1" value="1">
+        </label>
+        <label>
+          <span class="label-title" title="Максимальная глубина дерева.">Глубина: <span id="maxDepthValue"></span></span>
+          <input id="maxDepth" type="range" min="1" max="12" step="1" value="1">
+        </label>
+        <label>
+          <span class="label-title" title="Минимум объектов в узле для разбиения.">Min samples split: <span id="minSplitValue"></span></span>
+          <input id="minSplit" type="range" min="2" max="30" step="1" value="2">
+        </label>
+        <label>
+          <span class="label-title" title="Минимум объектов в листе.">Min samples leaf: <span id="minLeafValue"></span></span>
+          <input id="minLeaf" type="range" min="1" max="20" step="1" value="1">
+        </label>
+        <label>
+          <span class="label-title" title="Доля видимой выборки для каждого дерева (с возвращением).">Bootstrap: <span id="sampleRatioValue"></span></span>
+          <input id="sampleRatio" type="range" min="40" max="100" step="5" value="100">
+        </label>
+        <label>
+          <span class="label-title" title="Доля признаков для разбиения в каждом узле.">Max features: <span id="featureRatioValue"></span></span>
+          <input id="featureRatio" type="range" min="50" max="100" step="50" value="50">
+        </label>
+        <label>
+          <span class="label-title" title="Сколько деревьев показывать в перечислении внизу.">Видимых деревьев: <span id="visibleTreesValue"></span></span>
+          <input id="visibleTrees" type="range" min="1" max="12" step="1" value="1">
+        </label>
+        <label class="check-row">
+          <input id="showLastTree" type="checkbox" unchecked>
+          <span class="label-title" title="Показать разбиения дерева на графике (последнего или выбранного).">Показать дерево на графике</span>
+        </label>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="stage">
+        <canvas id="plotCanvas" width="780" height="580"></canvas>
+        <div class="legend">
+          <span><i class="dot train0"></i>Класс 0</span>
+          <span><i class="dot train1"></i>Класс 1</span>
+          <span><i class="ring"></i>test</span>
+        </div>
+      </div>
+
+      <div class="sidegrid">
+        <section class="panel metrics">
+          <h2>Метрики</h2>
+          <div class="metric-row">
+            <span>Деревьев обучено</span>
+            <strong id="trainedTrees">0</strong>
+          </div>
+          <div class="metric-row">
+            <span>Accuracy train</span>
+            <strong id="trainAccuracy">-</strong>
+          </div>
+          <div class="metric-row">
+            <span>Accuracy test</span>
+            <strong id="testAccuracy">-</strong>
+          </div>
+          <div class="metric-row">
+            <span title="Out-of-Bag accuracy: оценка на объектах, не вошедших в bootstrap-выборку каждого дерева.">OOB accuracy</span>
+            <strong id="oobAccuracy">-</strong>
+          </div>
+          <div class="metric-picker">
+            <label title="Precision: доля правильных положительных предсказаний из всех положительных.">
+              <input class="metric-toggle" type="checkbox" value="precision" unchecked> Precision
+            </label>
+            <label title="Recall: какую долю реальных положительных объектов модель нашла.">
+              <input class="metric-toggle" type="checkbox" value="recall" unchecked> Recall
+            </label>
+            <label title="F-метрика: гармоническое среднее precision и recall.">
+              <input class="metric-toggle" type="checkbox" value="fScore" unchecked> F-метрика
+            </label>
+            <label title="AUC-ROC: качество классификации по всем порогам.">
+              <input class="metric-toggle" type="checkbox" value="aucRoc" unchecked> AUC-ROC
+            </label>
+            <label title="AUC-PR: площадь под precision-recall кривой.">
+              <input class="metric-toggle" type="checkbox" value="aucPr" unchecked> AUC-PR
+            </label>
+          </div>
+          <div id="extraMetrics" class="extra-metrics"></div>
+          <div class="confusion">
+            <div title="True Positive: правильно предсказан класс 1.">TP<br><strong id="tp">0</strong></div>
+            <div title="True Negative: правильно предсказан класс 0.">TN<br><strong id="tn">0</strong></div>
+            <div title="False Positive: ошибочно предсказан класс 1.">FP<br><strong id="fp">0</strong></div>
+            <div title="False Negative: ошибочно предсказан класс 0.">FN<br><strong id="fn">0</strong></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Важность признаков</h2>
+          <div class="importance-row">
+            <span>x</span>
+            <div class="bar"><i id="impX"></i></div>
+            <strong id="impXText">0%</strong>
+          </div>
+          <div class="importance-row">
+            <span>y</span>
+            <div class="bar"><i id="impY"></i></div>
+            <strong id="impYText">0%</strong>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Статистика леса</h2>
+          <div id="forestStats" class="forest-stats"></div>
+        </section>
+      </div>
+
+      <section class="panel trees-panel">
+        <div class="panel-title">
+          <h2>Деревья</h2>
+          <span id="treeLimitNote">Показаны первые 4</span>
+        </div>
+        <div id="treeList" class="tree-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
