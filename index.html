@@ -14,9 +14,23 @@
     </div>
     <div class="topbar-actions">
       <button id="resetDataBtn" type="button" title="Перегенерировать точки с текущими настройками и очистить обученный лес.">Сбросить</button>
-      <button id="removeOneBtn" type="button" title="Убрать последнее обученное дерево из леса. Это удобно, чтобы пошагово откатиться назад.">-1 дерево</button>
-      <button id="trainOneBtn" type="button" title="Добавить одно обученное дерево в текущий лес. Граница решений появится сразу, но плановое число деревьев слева не меняется.">Обучить +1 дерево</button>
-      <button id="trainAllBtn" type="button" class="primary" title="Обучить деревья до количества, выбранного ползунком 'Деревьев'.">Обучить лес</button>
+      <label class="topbar-range">
+        <span title="Целевое количество деревьев в лесу.">Цель деревьев: <span id="treeCountValue"></span></span>
+        <input id="treeCount" type="range" min="1" max="80" step="1" value="1">
+      </label>
+      <details class="action-menu">
+        <summary>Обучение</summary>
+        <div class="action-menu-panel">
+          <button id="removeOneBtn" type="button" title="Убрать последнее обученное дерево из леса. Это удобно, чтобы пошагово откатиться назад.">-1 дерево</button>
+          <button id="trainOneBtn" type="button" title="Добавить одно обученное дерево в текущий лес. Граница решений появится сразу, но целевое число деревьев не меняется.">+1 дерево</button>
+          <button id="trainAllBtn" type="button" class="primary" title="Обучить деревья до количества, выбранного ползунком 'Цель деревьев'.">Обучить лес</button>
+          <button id="animateForestBtn" type="button" title="Автоматически обучать лес от текущего шага до выбранной цели.">Анимация леса</button>
+          <label class="menu-check">
+            <input id="animateSplits" type="checkbox" checked>
+            <span title="Во время анимации леса показывать split-линии каждого нового дерева по узлам.">split по узлам</span>
+          </label>
+        </div>
+      </details>
       <div class="playback-control">
         <label>
           <span title="Текущий шаг обучения: сколько деревьев сейчас обучено из выбранной цели.">Шаг обучения: <span id="playbackValue">0/18</span></span>
@@ -65,10 +79,6 @@
       <section>
         <h2>Лес</h2>
         <label>
-          <span class="label-title" title="Целевое количество деревьев в лесу.">Цель деревьев: <span id="treeCountValue"></span></span>
-          <input id="treeCount" type="range" min="1" max="80" step="1" value="1">
-        </label>
-        <label>
           <span class="label-title" title="Максимальная глубина дерева.">Глубина: <span id="maxDepthValue"></span></span>
           <input id="maxDepth" type="range" min="1" max="12" step="1" value="1">
         </label>
@@ -88,10 +98,6 @@
           <span class="label-title" title="Доля признаков для разбиения в каждом узле.">Max features: <span id="featureRatioValue"></span></span>
           <input id="featureRatio" type="range" min="50" max="100" step="50" value="50">
         </label>
-        <label>
-          <span class="label-title" title="Сколько деревьев показывать в перечислении внизу.">Видимых деревьев: <span id="visibleTreesValue"></span></span>
-          <input id="visibleTrees" type="range" min="1" max="12" step="1" value="1">
-        </label>
         <label class="check-row">
           <input id="showLastTree" type="checkbox" unchecked>
           <span class="label-title" title="Показать разбиения дерева на графике (последнего или выбранного).">Показать дерево на графике</span>
@@ -106,6 +112,7 @@
           <span><i class="dot train0"></i>Класс 0</span>
           <span><i class="dot train1"></i>Класс 1</span>
           <span><i class="ring"></i>test</span>
+          <span title="Объекты train-выборки, попавшие в bootstrap выбранного дерева."><i class="bootstrap-ring"></i>bootstrap</span>
         </div>
       </div>
 
@@ -177,7 +184,13 @@
       <section class="panel trees-panel">
         <div class="panel-title">
           <h2>Деревья</h2>
-          <span id="treeLimitNote">Показаны первые 4</span>
+          <div class="tree-panel-controls">
+            <label class="compact-range">
+              <span title="Сколько деревьев показывать в перечислении ниже.">Видимых деревьев: <span id="visibleTreesValue"></span></span>
+              <input id="visibleTrees" type="range" min="1" max="12" step="1" value="1">
+            </label>
+            <span id="treeLimitNote">Показаны первые 4</span>
+          </div>
         </div>
         <div id="treeList" class="tree-list"></div>
       </section>

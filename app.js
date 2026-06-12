@@ -22,7 +22,16 @@ const state = {
   train: [],
   test: [],
   forest: null,
-  selectedTreeIndex: -1
+  selectedTreeIndex: -1,
+  nodeAnimation: {
+    treeIndex: -1,
+    visibleSplits: Infinity,
+    timer: null
+  },
+  forestAnimation: {
+    timer: null,
+    active: false
+  }
 };
 
 function makeRandom(seed) {
@@ -113,8 +122,15 @@ function generateData() {
   state.data = data;
   state.train = data.filter(point => point.train);
   state.test = data.filter(point => !point.train);
+  state.train.forEach((point, index) => {
+    point.trainIndex = index;
+  });
+  state.test.forEach(point => {
+    point.trainIndex = -1;
+  });
   state.forest = new RandomForest(getForestOptions());
   state.selectedTreeIndex = -1;
+  stopAnimations();
   updateAll();
 }
 
@@ -266,6 +282,7 @@ class RandomForest {
     this.random = makeRandom(options.seed + 1000);
     this.trees = [];
     this.oobIndices = [];
+    this.inBagIndices = [];
   }
 
   trainOne(points) {
@@ -289,11 +306,13 @@ class RandomForest {
     tree.fit(sample);
     this.trees.push(tree);
     this.oobIndices.push(oob);
+    this.inBagIndices.push(inBag);
   }
 
   removeLast() {
     this.trees.pop();
     this.oobIndices.pop();
+    this.inBagIndices.pop();
   }
 
   predict(point) {
@@ -389,6 +408,7 @@ function getForestOptions() {
 }
 
 function resetForest() {
+  stopAnimations();
   state.forest = new RandomForest(getForestOptions());
   state.selectedTreeIndex = -1;
   updateAll();
@@ -417,6 +437,7 @@ function syncForestTarget() {
 
   if (state.selectedTreeIndex >= trainedTreeCount()) {
     state.selectedTreeIndex = -1;
+    stopNodeAnimation();
   }
 }
 
@@ -434,6 +455,106 @@ function setTrainedTreeCount(targetCount) {
 
   if (state.selectedTreeIndex >= trainedTreeCount()) {
     state.selectedTreeIndex = -1;
+    stopNodeAnimation();
+  }
+}
+
+function overlayTreeIndex() {
+  if (state.selectedTreeIndex >= 0 && state.selectedTreeIndex < trainedTreeCount()) {
+    return state.selectedTreeIndex;
+  }
+  if (trainedTreeCount() > 0) return trainedTreeCount() - 1;
+  return -1;
+}
+
+function stopNodeAnimation() {
+  if (state.nodeAnimation.timer) {
+    clearInterval(state.nodeAnimation.timer);
+  }
+  state.nodeAnimation.timer = null;
+  state.nodeAnimation.treeIndex = -1;
+  state.nodeAnimation.visibleSplits = Infinity;
+}
+
+function stopForestAnimation() {
+  if (state.forestAnimation.timer) {
+    clearTimeout(state.forestAnimation.timer);
+  }
+  state.forestAnimation.timer = null;
+  state.forestAnimation.active = false;
+  stopNodeAnimation();
+  const button = document.getElementById("animateForestBtn");
+  if (button) button.textContent = "Анимация леса";
+}
+
+function stopAnimations() {
+  stopForestAnimation();
+}
+
+function animateTreeSplits(treeIndex, onDone) {
+  const totalSplits = countSplitNodes(state.forest.trees[treeIndex].root);
+  if (totalSplits === 0) {
+    drawPlot();
+    onDone();
+    return;
+  }
+
+  state.nodeAnimation.treeIndex = treeIndex;
+  state.nodeAnimation.visibleSplits = 0;
+  drawPlot();
+
+  state.nodeAnimation.timer = setInterval(() => {
+    state.nodeAnimation.visibleSplits++;
+    drawPlot();
+
+    if (state.nodeAnimation.visibleSplits >= totalSplits) {
+      clearInterval(state.nodeAnimation.timer);
+      state.nodeAnimation.timer = null;
+      state.nodeAnimation.visibleSplits = Infinity;
+      drawPlot();
+      onDone();
+    }
+  }, 420);
+}
+
+function toggleForestAnimation() {
+  if (!state.forest || trainedTreeCount() >= targetTreeCount()) return;
+
+  if (state.forestAnimation.active) {
+    stopForestAnimation();
+    updateButtonStates();
+    return;
+  }
+
+  stopAnimations();
+  state.forestAnimation.active = true;
+  document.getElementById("animateForestBtn").textContent = "Стоп";
+  runForestAnimationStep();
+  updateButtonStates();
+}
+
+function runForestAnimationStep() {
+  if (!state.forestAnimation.active) return;
+
+  if (trainedTreeCount() >= targetTreeCount()) {
+    stopForestAnimation();
+    updateAll();
+    return;
+  }
+
+  state.forest.trainOne(state.train);
+  state.selectedTreeIndex = -1;
+  updateAll();
+
+  const newTreeIndex = trainedTreeCount() - 1;
+  if (document.getElementById("animateSplits").checked) {
+    animateTreeSplits(newTreeIndex, () => {
+      state.nodeAnimation.treeIndex = -1;
+      state.nodeAnimation.visibleSplits = Infinity;
+      state.forestAnimation.timer = setTimeout(runForestAnimationStep, 220);
+    });
+  } else {
+    state.forestAnimation.timer = setTimeout(runForestAnimationStep, 520);
   }
 }
 
@@ -482,14 +603,40 @@ function drawPlot() {
 
   drawAxes(rect);
   
-  if (state.selectedTreeIndex >= 0 && state.selectedTreeIndex < trainedTreeCount()) {
-    drawTreeOverlay(state.forest.trees[state.selectedTreeIndex], 0.3, 2, [5, 3], "rgba(20, 32, 30, 0.75)");
+  const animatedTreeIndex = state.nodeAnimation.treeIndex;
+  const selectedTreeIndex = state.selectedTreeIndex;
+  if (animatedTreeIndex >= 0 && animatedTreeIndex < trainedTreeCount()) {
+    drawTreeOverlay(
+      state.forest.trees[animatedTreeIndex],
+      0.2,
+      2,
+      [5, 3],
+      "rgba(20, 32, 30, 0.85)",
+      state.nodeAnimation.visibleSplits,
+      false
+    );
+  } else if (selectedTreeIndex >= 0 && selectedTreeIndex < trainedTreeCount()) {
+    const isAnimating = animatedTreeIndex === selectedTreeIndex;
+    drawTreeOverlay(
+      state.forest.trees[selectedTreeIndex],
+      0.3,
+      2,
+      [5, 3],
+      "rgba(20, 32, 30, 0.75)",
+      isAnimating ? state.nodeAnimation.visibleSplits : Infinity,
+      !isAnimating
+    );
   } else if (controls.showLastTree.checked) {
     drawLastTreeOverlay();
   }
 
+  const bootstrapSet = selectedBootstrapSet();
   for (const point of state.data) {
     const screen = toScreen(point);
+    const isBootstrapPoint = bootstrapSet && point.train && bootstrapSet.has(point.trainIndex);
+    const shouldFade = bootstrapSet && point.train && !isBootstrapPoint;
+    ctx.save();
+    ctx.globalAlpha = shouldFade ? 0.32 : 1;
     ctx.beginPath();
     ctx.arc(screen.x, screen.y, point.train ? 4.2 : 5.2, 0, Math.PI * 2);
     ctx.fillStyle = point.label === 0 ? "#148a82" : "#d65a4a";
@@ -499,43 +646,64 @@ function drawPlot() {
       ctx.strokeStyle = "#d59624";
       ctx.stroke();
     }
+    if (isBootstrapPoint) {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#14201e";
+      ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#d59624";
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 
 function drawLastTreeOverlay() {
   if (!controls.showLastTree.checked || !state.forest || trainedTreeCount() === 0) return;
-  const lastTree = state.forest.trees[trainedTreeCount() - 1];
-  drawTreeOverlay(lastTree, 0.25, 1.5, [4, 3], "rgba(20, 32, 30, 0.6)");
+  const lastTreeIndex = trainedTreeCount() - 1;
+  const isAnimating = state.nodeAnimation.treeIndex === lastTreeIndex;
+  drawTreeOverlay(
+    state.forest.trees[lastTreeIndex],
+    0.25,
+    1.5,
+    [4, 3],
+    "rgba(20, 32, 30, 0.6)",
+    isAnimating ? state.nodeAnimation.visibleSplits : Infinity,
+    !isAnimating
+  );
 }
 
-function drawTreeOverlay(tree, fillAlpha, lineWidth, lineDash, strokeStyle) {
+function drawTreeOverlay(tree, fillAlpha, lineWidth, lineDash, strokeStyle, maxSplits = Infinity, fillEnabled = true) {
   const bounds = { xMin: -1.7, xMax: 1.7, yMin: -1.7, yMax: 1.7 };
   const cell = 8;
   const rect = canvas.getBoundingClientRect();
 
   ctx.save();
 
-  for (let y = 0; y < rect.height; y += cell) {
-    for (let x = 0; x < rect.width; x += cell) {
-      const world = toWorld(x + cell / 2, y + cell / 2);
-      const pred = tree.predict(world);
-      ctx.fillStyle = pred === 1
-        ? `rgba(214, 90, 74, ${fillAlpha})`
-        : `rgba(20, 138, 130, ${fillAlpha})`;
-      ctx.fillRect(x, y, cell + 1, cell + 1);
+  if (fillEnabled) {
+    for (let y = 0; y < rect.height; y += cell) {
+      for (let x = 0; x < rect.width; x += cell) {
+        const world = toWorld(x + cell / 2, y + cell / 2);
+        const pred = tree.predict(world);
+        ctx.fillStyle = pred === 1
+          ? `rgba(214, 90, 74, ${fillAlpha})`
+          : `rgba(20, 138, 130, ${fillAlpha})`;
+        ctx.fillRect(x, y, cell + 1, cell + 1);
+      }
     }
   }
 
   ctx.lineWidth = lineWidth;
   ctx.strokeStyle = strokeStyle;
   ctx.setLineDash(lineDash);
-  drawTreeSplitNode(tree.root, bounds);
+  drawTreeSplitNode(tree.root, bounds, { drawn: 0, max: maxSplits });
   
   ctx.restore();
 }
 
-function drawTreeSplitNode(node, bounds) {
+function drawTreeSplitNode(node, bounds, limit) {
   if (!node || node.type === "leaf") return;
+  if (limit.drawn >= limit.max) return;
 
   if (node.feature === "x") {
     const from = toScreen({ x: node.threshold, y: bounds.yMin });
@@ -544,19 +712,20 @@ function drawTreeSplitNode(node, bounds) {
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
+    limit.drawn++;
 
     drawTreeSplitNode(node.left, {
       xMin: bounds.xMin,
       xMax: Math.min(bounds.xMax, node.threshold),
       yMin: bounds.yMin,
       yMax: bounds.yMax
-    });
+    }, limit);
     drawTreeSplitNode(node.right, {
       xMin: Math.max(bounds.xMin, node.threshold),
       xMax: bounds.xMax,
       yMin: bounds.yMin,
       yMax: bounds.yMax
-    });
+    }, limit);
   } else {
     const from = toScreen({ x: bounds.xMin, y: node.threshold });
     const to = toScreen({ x: bounds.xMax, y: node.threshold });
@@ -564,20 +733,31 @@ function drawTreeSplitNode(node, bounds) {
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
+    limit.drawn++;
 
     drawTreeSplitNode(node.left, {
       xMin: bounds.xMin,
       xMax: bounds.xMax,
       yMin: bounds.yMin,
       yMax: Math.min(bounds.yMax, node.threshold)
-    });
+    }, limit);
     drawTreeSplitNode(node.right, {
       xMin: bounds.xMin,
       xMax: bounds.xMax,
       yMin: Math.max(bounds.yMin, node.threshold),
       yMax: bounds.yMax
-    });
+    }, limit);
   }
+}
+
+function selectedBootstrapSet() {
+  if (!state.forest || state.selectedTreeIndex < 0) return null;
+  return state.forest.inBagIndices[state.selectedTreeIndex] || null;
+}
+
+function countSplitNodes(node) {
+  if (!node || node.type === "leaf") return 0;
+  return 1 + countSplitNodes(node.left) + countSplitNodes(node.right);
 }
 
 function drawAxes(rect) {
@@ -824,9 +1004,16 @@ function updateTrees() {
     card.className = `tree-card ${i === state.selectedTreeIndex ? "selected" : ""}`;
     card.id = `tree-card-${i}`;
     card.innerHTML = `<h3>Дерево ${i + 1}</h3>`;
+    const inBagSize = state.forest.inBagIndices[i] ? state.forest.inBagIndices[i].size : 0;
+    const oobSize = state.forest.oobIndices[i] ? state.forest.oobIndices[i].length : 0;
+    const meta = document.createElement("p");
+    meta.className = "tree-meta";
+    meta.textContent = `bootstrap: ${inBagSize} уник., OOB: ${oobSize}`;
+    card.appendChild(meta);
     card.appendChild(renderNode(state.forest.trees[i].root, 0));
     
     card.addEventListener("click", () => {
+      stopNodeAnimation();
       state.selectedTreeIndex = state.selectedTreeIndex === i ? -1 : i;
       updateTrees();
       drawPlot();
@@ -870,28 +1057,40 @@ function updateButtonStates() {
   const trainOneBtn = document.getElementById("trainOneBtn");
   const trainAllBtn = document.getElementById("trainAllBtn");
   const removeOneBtn = document.getElementById("removeOneBtn");
+  const animateForestBtn = document.getElementById("animateForestBtn");
+  const animateSplits = document.getElementById("animateSplits");
   const isComplete = trainedTreeCount() >= targetTreeCount();
   const isEmpty = trainedTreeCount() === 0;
-  trainOneBtn.disabled = isComplete;
-  trainAllBtn.disabled = isComplete;
-  removeOneBtn.disabled = isEmpty;
+  const isForestAnimating = state.forestAnimation.active;
+  trainOneBtn.disabled = isComplete || isForestAnimating;
+  trainAllBtn.disabled = isComplete || isForestAnimating;
+  removeOneBtn.disabled = isEmpty || isForestAnimating;
+  animateForestBtn.disabled = isComplete && !isForestAnimating;
+  animateSplits.disabled = isForestAnimating;
+  controls.treeCount.disabled = isForestAnimating;
+  document.getElementById("playbackSlider").disabled = isForestAnimating;
 }
 
 document.getElementById("resetDataBtn").addEventListener("click", generateData);
 document.getElementById("removeOneBtn").addEventListener("click", () => {
+  stopAnimations();
   setTrainedTreeCount(trainedTreeCount() - 1);
   updateAll();
 });
 document.getElementById("trainOneBtn").addEventListener("click", () => {
+  stopAnimations();
   setTrainedTreeCount(trainedTreeCount() + 1);
   updateAll();
 });
 document.getElementById("trainAllBtn").addEventListener("click", () => {
+  stopAnimations();
   setTrainedTreeCount(targetTreeCount());
   updateAll();
 });
+document.getElementById("animateForestBtn").addEventListener("click", toggleForestAnimation);
 
 document.getElementById("playbackSlider").addEventListener("input", (e) => {
+  stopAnimations();
   setTrainedTreeCount(Number(e.target.value));
   updateAll();
 });
@@ -902,11 +1101,13 @@ for (const key of Object.keys(controls)) {
     if (["dataset", "sampleCount", "noise", "trainSplit", "seed"].includes(key)) {
       generateData();
     } else if (key === "treeCount") {
+      stopAnimations();
       updateAll();
     } else if (key === "visibleTrees") {
       updateLabels();
       updateTrees();
     } else if (key === "showLastTree") {
+      stopAnimations();
       drawPlot();
     } else {
       resetForest();

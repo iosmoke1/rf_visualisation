@@ -109,6 +109,24 @@ h2 {
   -webkit-appearance: none;
 }
 
+.topbar-range,
+.compact-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.topbar-range input[type="range"] {
+  width: 120px;
+}
+
+.compact-range input[type="range"] {
+  width: 110px;
+}
+
 .playback-control input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;
@@ -152,6 +170,63 @@ button.primary {
   border-color: var(--teal);
   background: var(--teal);
   color: #ffffff;
+}
+
+.action-menu {
+  position: relative;
+}
+
+.action-menu summary {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.action-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.action-menu[open] summary,
+.action-menu summary:hover {
+  border-color: var(--teal);
+}
+
+.action-menu-panel {
+  position: absolute;
+  right: 0;
+  z-index: 10;
+  display: grid;
+  gap: 8px;
+  width: 190px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.action-menu-panel button {
+  width: 100%;
+}
+
+.menu-check {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.menu-check input {
+  accent-color: var(--teal);
 }
 
 .layout {
@@ -267,7 +342,8 @@ canvas {
 }
 
 .dot,
-.ring {
+.ring,
+.bootstrap-ring {
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -284,6 +360,11 @@ canvas {
 
 .ring {
   border: 2px solid var(--gold);
+}
+
+.bootstrap-ring {
+  border: 2px solid var(--ink);
+  box-shadow: inset 0 0 0 2px var(--gold);
 }
 
 .sidegrid {
@@ -444,6 +525,14 @@ canvas {
   font-size: 13px;
 }
 
+.tree-panel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
 .tree-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -477,6 +566,12 @@ canvas {
 .tree-card h3 {
   margin: 0 0 10px;
   font-size: 14px;
+}
+
+.tree-meta {
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .tree-node {
@@ -547,6 +642,22 @@ canvas {
   .topbar-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .action-menu-panel {
+    position: static;
+    width: 100%;
+  }
+
+  .topbar-range,
+  .playback-control,
+  .playback-control label {
+    width: 100%;
+  }
+
+  .topbar-range input[type="range"],
+  .playback-control input[type="range"] {
+    width: 100%;
   }
 
   .layout {
